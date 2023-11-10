@@ -5,6 +5,7 @@
 #include <unistd.h>
 #include <stdlib.h>
 #include<string.h>
+#include <time.h>
 
 #define DATA_OFFSET_OFFSET 0x000A
 #define WIDTH_OFFSET 0x0012
@@ -16,8 +17,6 @@ int main( int argc, char *argv[])
 {
     int fd1,fd2;
     char s[120];
-    char buff[BUFFERSIZE];
-    int n;
 
     if(argc!=2)
     {
@@ -47,23 +46,132 @@ int main( int argc, char *argv[])
         exit(4);
     }
     //citire lungime si inaltime fisier bmp
-    int32_t l,i;
-    fseek(argv[1],18*4,SEEK_SET);
-    fread(l,4,1,argv[1]);
+    int l,i;
+    lseek(fd1,18,SEEK_SET);
+    read(fd1,&l,4);
     sprintf(s, "lungime: %d\n", l);
     if(write(fd2,s,strlen(s))!=strlen(s))
-    {
-        printf("Error writing to file\n");
-        exit(4);
-    }
-    fseek(argv[1],4,SEEK_CUR);
-    fread(i,4,1,argv[1]);
+        {
+            printf("Error writing to file\n");
+            exit(4);
+        }
+    lseek(fd1,22,SEEK_SET);
+    read(fd1,&i,4);
     sprintf(s, "inaltime: %d\n", i);
     if(write(fd2,s,strlen(s))!=strlen(s))
-    {
-        printf("Error writing to file\n");
-        exit(4);
-    }
-    //scriere in statistica.txt
+        {
+            printf("Error writing to file\n");
+            exit(4);
+        }
+
+    //dimensiune: <dimensiune in octeti>
+    struct stat info;
+    fstat(fd1,&info);
+    sprintf(s, "dimensiune: %ld\n", info.st_size);
+    if(write(fd2,s,strlen(s))!=strlen(s))
+        {
+            printf("Error writing to file\n");
+            exit(4);
+        }
+    //varianta 2
+    /*int dim;
+    lseek(fd1,2,SEEK_SET);
+    read(fd1,&dim,4);
+    sprintf(s, "dimensiune2: %d\n", dim);
+    if(write(fd2,s,strlen(s))!=strlen(s))
+        {
+            printf("Error writing to file\n");
+            exit(4);
+        }
+    */
+
+    //identificatorul utilizatorului: <user id>
+    sprintf(s, "identificatorul utilizatorului: %d\n", info.st_uid);
+    if(write(fd2,s,strlen(s))!=strlen(s))
+        {
+            printf("Error writing to file\n");
+            exit(4);
+        }
+    //timpul ultimei modificari: 28.10.2023
+   struct tm *timp;
+   struct stat attr;
+   stat(argv[1],&attr);
+   timp=gmtime(&(attr.st_mtime));
+    sprintf(s, "timpul ultimei modificari: %s",asctime(timp));
+    if(write(fd2,s,strlen(s))!=strlen(s))
+        {
+            printf("Error writing to file\n");
+            exit(4);
+        }
     
+    //contorul de legaturi: <numar legaturi>
+    sprintf(s, "contorul de legaturi: %d\n", info.st_nlink);
+    if(write(fd2,s,strlen(s))!=strlen(s))
+        {
+            printf("Error writing to file\n");
+            exit(4);
+        }
+
+    
+    //drepturi de acces user: RWX
+    char drept[4];
+    if(info.st_mode&S_IRUSR)
+            drept[0]='r';
+    else
+            drept[0]='-';
+    if(info.st_mode&S_IWUSR)
+            drept[1]='w';
+    else
+            drept[1]='-';
+    if(info.st_mode&S_IXUSR)
+            drept[2]='x';
+    else
+            drept[2]='-';
+    sprintf(s, "drepturi de acces user: %s\n", drept);
+    if(write(fd2,s,strlen(s))!=strlen(s))
+        {
+            printf("Error writing to file\n");
+            exit(4);
+        }
+    //drepturi de acces grup: R–-
+    if(info.st_mode&S_IRGRP)
+            drept[0]='r';
+    else
+            drept[0]='-';
+    if(info.st_mode&S_IWGRP)
+            drept[1]='w';
+    else
+            drept[1]='-';
+    if(info.st_mode&S_IXGRP)
+            drept[2]='x';
+    else
+            drept[2]='-';
+    sprintf(s, "drepturi de acces grup: %s\n", drept);
+    if(write(fd2,s,strlen(s))!=strlen(s))
+        {
+            printf("Error writing to file\n");
+            exit(4);
+        }
+
+
+    //drepturi de acces altii: ---
+    if(info.st_mode&S_IROTH)
+            drept[0]='r';
+    else
+            drept[0]='-';
+    if(info.st_mode&S_IWOTH)
+            drept[1]='w';
+    else
+            drept[1]='-';
+    if(info.st_mode&S_IXOTH)
+            drept[2]='x';
+    else
+            drept[2]='-';
+    sprintf(s, "drepturi de acces altii: %s\n", drept);
+    if(write(fd2,s,strlen(s))!=strlen(s))
+        {
+            printf("Error writing to file\n");
+            exit(4);
+        }
+        return 0;
 }
