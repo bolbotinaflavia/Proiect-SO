@@ -6,45 +6,28 @@
 #include <stdlib.h>
 #include<string.h>
 #include <time.h>
+#include<dirent.h>
 
 #define DATA_OFFSET_OFFSET 0x000A
 #define WIDTH_OFFSET 0x0012
 #define HEIGHT_OFFSET 0x0016
 
 #define BUFFERSIZE 4096
+char s[250];
+int fd2;
+struct stat info;
 
-int main( int argc, char *argv[])
-{
-    int fd1,fd2;
-    char s[120];
-
-    if(argc!=2)
-    {
-        exit(2);
-    }
-    char *ext;
-        ext=strchr(argv[1],'.');
-        if(strcmp(ext,".bmp")!=0)
-             printf("Usage %s %s",argv[0], argv[1]);
-    /*** Deschiderea fisierelor */
-    if((fd1=open(argv[1], O_RDONLY))<0)
-    {
-        printf("Error opening input file\n");
-        exit(2);
-    }
-    if((fd2=open("statistica.txt", O_WRONLY | O_CREAT | O_EXCL, S_IRWXU)) < 0)
-    {
-        printf("Error creating destination file\n");
-        exit(3);
-    }
-
+void nume_fis(char dir[]){
     //scriere denumire fisier
-    sprintf(s, "nume fisier: %s\n", argv[1]);
+    sprintf(s, "nume fisier: %s\n", dir);
     if(write(fd2,s,strlen(s))!=strlen(s))
     {
         printf("Error writing to file\n");
         exit(4);
     }
+}
+
+void lungime_inaltime(int fd1){
     //citire lungime si inaltime fisier bmp
     int l,i;
     lseek(fd1,18,SEEK_SET);
@@ -63,10 +46,10 @@ int main( int argc, char *argv[])
             printf("Error writing to file\n");
             exit(4);
         }
+}
 
-    //dimensiune: <dimensiune in octeti>
-    struct stat info;
-    fstat(fd1,&info);
+void dimensiune(){
+     //dimensiune: <dimensiune in octeti>
     sprintf(s, "dimensiune: %ld\n", info.st_size);
     if(write(fd2,s,strlen(s))!=strlen(s))
         {
@@ -84,7 +67,9 @@ int main( int argc, char *argv[])
             exit(4);
         }
     */
+}
 
+void identificatorul(){
     //identificatorul utilizatorului: <user id>
     sprintf(s, "identificatorul utilizatorului: %d\n", info.st_uid);
     if(write(fd2,s,strlen(s))!=strlen(s))
@@ -92,10 +77,13 @@ int main( int argc, char *argv[])
             printf("Error writing to file\n");
             exit(4);
         }
-    //timpul ultimei modificari: 28.10.2023
+}
+
+void timpul_ult_modif(char dir[]){
+     //timpul ultimei modificari: 28.10.2023
    struct tm *timp;
    struct stat attr;
-   stat(argv[1],&attr);
+   stat(dir,&attr);
    timp=gmtime(&(attr.st_mtime));
     sprintf(s, "timpul ultimei modificari: %s",asctime(timp));
     if(write(fd2,s,strlen(s))!=strlen(s))
@@ -103,7 +91,9 @@ int main( int argc, char *argv[])
             printf("Error writing to file\n");
             exit(4);
         }
-    
+}
+
+void nr_leg(){
     //contorul de legaturi: <numar legaturi>
     sprintf(s, "contorul de legaturi: %d\n", info.st_nlink);
     if(write(fd2,s,strlen(s))!=strlen(s))
@@ -111,9 +101,10 @@ int main( int argc, char *argv[])
             printf("Error writing to file\n");
             exit(4);
         }
+}
 
-    
-    //drepturi de acces user: RWX
+void drepturi(char *sir){
+     //drepturi de acces user: RWX
     char drept[4];
     if(info.st_mode&S_IRUSR)
             drept[0]='r';
@@ -127,7 +118,7 @@ int main( int argc, char *argv[])
             drept[2]='x';
     else
             drept[2]='-';
-    sprintf(s, "drepturi de acces user: %s\n", drept);
+    sprintf(s, "drepturi de acces user%s: %s\n",sir,drept);
     if(write(fd2,s,strlen(s))!=strlen(s))
         {
             printf("Error writing to file\n");
@@ -146,7 +137,7 @@ int main( int argc, char *argv[])
             drept[2]='x';
     else
             drept[2]='-';
-    sprintf(s, "drepturi de acces grup: %s\n", drept);
+    sprintf(s, "drepturi de acces grup%s: %s\n",sir, drept);
     if(write(fd2,s,strlen(s))!=strlen(s))
         {
             printf("Error writing to file\n");
@@ -167,11 +158,142 @@ int main( int argc, char *argv[])
             drept[2]='x';
     else
             drept[2]='-';
-    sprintf(s, "drepturi de acces altii: %s\n", drept);
+    sprintf(s, "drepturi de acces altii%s: %s\n",sir, drept);
     if(write(fd2,s,strlen(s))!=strlen(s))
         {
             printf("Error writing to file\n");
             exit(4);
         }
-        return 0;
+}
+
+void parcurgere(char *nume_dir,int nivel){
+    DIR *dir;
+    struct dirent *in;
+    char *nume;
+    char cale[PATH_MAX],cale_link[PATH_MAX+1],spatii[PATH_MAX];
+    int n;
+
+    memset(spatii,' ',2*nivel);
+    spatii[2*nivel]='\0';
+    if(!(dir=opendir(nume_dir))){
+        perror("Nu s-a deschis directorul");
+        exit(1);
+    }
+
+    if((fd2=open("statistica.txt", O_WRONLY | O_CREAT | O_EXCL, S_IRWXU)) < 0)
+    {
+        printf("Error creating destination file\n");
+        exit(3);
+    }
+
+    while((in=readdir(dir))>0){
+        
+        nume=in->d_name;
+        if(strcmp(nume,".")==0||strcmp(nume,"..")==0)
+            continue;
+        snprintf(cale,sizeof(cale),"%s/%s",nume_dir,nume);
+        if(lstat(cale,&info)<0){
+            perror("eroare la lstat");
+            exit(1);
+        }
+        if(S_ISDIR(info.st_mode)){
+            sprintf(s, "nume director: %s\n", nume_dir);
+            if(write(fd2,s,strlen(s))!=strlen(s))
+            {
+                printf("Error writing to file\n");
+                exit(4);
+            }
+            identificatorul();
+            drepturi("");
+        }
+        else{
+            if(S_ISLNK(info.st_mode)){
+                n=readlink(cale,cale_link,sizeof(cale_link));
+                cale_link[n]='\0';
+                char cale2[PATH_MAX+1];
+                printf("%s %s -> %s\n",spatii,cale,cale_link);
+                    snprintf(cale2,sizeof(cale2),"%s/%s",nume_dir,cale_link);
+                    printf("%s \n",cale2);
+                    struct stat info2;
+                    if(lstat(cale2,&info2)<0){
+                        perror("eroare la lstat");
+                        exit(1);
+                    }
+                    if(S_ISREG(info2.st_mode)){
+                        sprintf(s, "nume legatura: %s\n", nume);
+                    if(write(fd2,s,strlen(s))!=strlen(s))
+                    {
+                        printf("Error writing to file\n");
+                        exit(4);
+                    }
+                    sprintf(s, "dimensiune legatura: %ld\n", info.st_size);
+                    if(write(fd2,s,strlen(s))!=strlen(s))
+                    {
+                        printf("Error writing to file\n");
+                        exit(4);
+                    }
+                
+                    sprintf(s, "dimensiune fisier: %ld\n", info2.st_size);
+                    if(write(fd2,s,strlen(s))!=strlen(s))
+                    {
+                        printf("Error writing to file\n");
+                        exit(4);
+                    }
+                    drepturi(" legatura");
+                }
+            }
+            else{
+                if(S_ISREG(info.st_mode)){
+                     //verificare fisier bmp
+                    int fd1;
+                    if((fd1=open(cale, O_RDONLY))<0)
+                    {
+                        printf("Error opening input file\n");
+                        exit(2);
+                    }
+                    char *ext;
+                    ext=strchr(nume,'.');
+                    if(strcmp(ext,".bmp")!=0){
+                        nume_fis(nume);
+                        dimensiune();
+                        identificatorul();
+                        timpul_ult_modif(nume);
+                        nr_leg();
+                        drepturi("");
+                    }
+                    else{
+                        nume_fis(nume);
+                        lungime_inaltime(fd1);
+                        dimensiune();
+                        identificatorul();
+                        timpul_ult_modif(nume);
+                        nr_leg();
+                        drepturi("");
+                    }
+                }
+            }
+        }
+        sprintf(s, "\n");
+        if(write(fd2,s,strlen(s))!=strlen(s))
+        {
+            printf("Error writing to file\n");
+            exit(4);
+        }
+    }
+    closedir(dir);
+}
+
+int main( int argc, char *argv[])
+{
+   
+
+    if(argc!=2)
+    {
+        exit(2);
+    }
+   
+   parcurgere(argv[1],0);
+    
+    
+    return 0;
 }
