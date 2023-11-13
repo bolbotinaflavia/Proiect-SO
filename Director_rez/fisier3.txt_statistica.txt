@@ -1,0 +1,6 @@
+nume legatura: fisier3.txt
+dimensiune legatura: 11
+dimensiune fisier: 0
+drepturi de acces user legatura: rwx
+drepturi de acces grup legatura: rwx
+drepturi de acces altii legatura: rwx

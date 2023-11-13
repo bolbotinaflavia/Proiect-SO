@@ -7,6 +7,7 @@
 #include<string.h>
 #include <time.h>
 #include<dirent.h>
+#include<sys/wait.h>
 
 #define DATA_OFFSET_OFFSET 0x000A
 #define WIDTH_OFFSET 0x0012
@@ -166,12 +167,15 @@ void drepturi(char *sir){
         }
 }
 
-void parcurgere(char *nume_dir,int nivel){
+void parcurgere(char *nume_dir,char *nume_dir2,int nivel){
     DIR *dir;
     struct dirent *in;
     char *nume;
     char cale[PATH_MAX],cale_link[PATH_MAX+1],spatii[PATH_MAX];
     int n;
+
+    pid_t pid,wpid;
+    int status;
 
     memset(spatii,' ',2*nivel);
     spatii[2*nivel]='\0';
@@ -180,105 +184,128 @@ void parcurgere(char *nume_dir,int nivel){
         exit(1);
     }
 
-    if((fd2=open("statistica.txt", O_WRONLY | O_CREAT | O_EXCL, S_IRWXU)) < 0)
-    {
-        printf("Error creating destination file\n");
-        exit(3);
-    }
+    
 
     while((in=readdir(dir))>0){
         
+        
+        if((pid=fork())<0){
+            printf("eroare creare proces fiu\n");
+        }
         nume=in->d_name;
         if(strcmp(nume,".")==0||strcmp(nume,"..")==0)
-            continue;
+                continue;
         snprintf(cale,sizeof(cale),"%s/%s",nume_dir,nume);
         if(lstat(cale,&info)<0){
-            perror("eroare la lstat");
-            exit(1);
+                perror("eroare la lstat");
+                exit(1);
         }
-        if(S_ISDIR(info.st_mode)){
-            sprintf(s, "nume director: %s\n", nume_dir);
-            if(write(fd2,s,strlen(s))!=strlen(s))
+        if(pid==0){
+            
+            char s_fis[250];
+            sprintf(s_fis,"%s/%s_statistica.txt",nume_dir2,nume);
+            if((fd2=open(s_fis, O_WRONLY | O_CREAT | O_EXCL, S_IRWXU)) < 0)
             {
-                printf("Error writing to file\n");
-                exit(4);
+                printf("Error creating destination file\n");
+                exit(3);
             }
-            identificatorul();
-            drepturi("");
-        }
-        else{
-            if(S_ISLNK(info.st_mode)){
-                n=readlink(cale,cale_link,sizeof(cale_link));
-                cale_link[n]='\0';
-                char cale2[PATH_MAX+1];
-                printf("%s %s -> %s\n",spatii,cale,cale_link);
-                    snprintf(cale2,sizeof(cale2),"%s/%s",nume_dir,cale_link);
-                    printf("%s \n",cale2);
-                    struct stat info2;
-                    if(lstat(cale2,&info2)<0){
-                        perror("eroare la lstat");
-                        exit(1);
-                    }
-                    if(S_ISREG(info2.st_mode)){
-                        sprintf(s, "nume legatura: %s\n", nume);
-                    if(write(fd2,s,strlen(s))!=strlen(s))
-                    {
-                        printf("Error writing to file\n");
-                        exit(4);
-                    }
-                    sprintf(s, "dimensiune legatura: %ld\n", info.st_size);
-                    if(write(fd2,s,strlen(s))!=strlen(s))
-                    {
-                        printf("Error writing to file\n");
-                        exit(4);
-                    }
-                
-                    sprintf(s, "dimensiune fisier: %ld\n", info2.st_size);
-                    if(write(fd2,s,strlen(s))!=strlen(s))
-                    {
-                        printf("Error writing to file\n");
-                        exit(4);
-                    }
-                    drepturi(" legatura");
+            
+            //caz director
+            if(S_ISDIR(info.st_mode)){
+                sprintf(s, "nume director: %s\n", nume_dir);
+                if(write(fd2,s,strlen(s))!=strlen(s))
+                {
+                    printf("Error writing to file\n");
+                    exit(4);
                 }
+                identificatorul();
+                drepturi("");
             }
             else{
-                if(S_ISREG(info.st_mode)){
-                     //verificare fisier bmp
-                    int fd1;
-                    if((fd1=open(cale, O_RDONLY))<0)
-                    {
-                        printf("Error opening input file\n");
-                        exit(2);
+                //caz legatura
+                if(S_ISLNK(info.st_mode)){
+                    n=readlink(cale,cale_link,sizeof(cale_link));
+                    cale_link[n]='\0';
+                    char cale2[PATH_MAX+1];
+                    //printf("%s %s -> %s\n",spatii,cale,cale_link);
+                        snprintf(cale2,sizeof(cale2),"%s/%s",nume_dir,cale_link);
+                        //printf("%s \n",cale2);
+                        struct stat info2;
+                        if(lstat(cale2,&info2)<0){
+                            perror("eroare la lstat");
+                            exit(1);
+                        }
+                        if(S_ISREG(info2.st_mode)){
+                            sprintf(s, "nume legatura: %s\n", nume);
+                        if(write(fd2,s,strlen(s))!=strlen(s))
+                        {
+                            printf("Error writing to file\n");
+                            exit(4);
+                        }
+                        sprintf(s, "dimensiune legatura: %ld\n", info.st_size);
+                        if(write(fd2,s,strlen(s))!=strlen(s))
+                        {
+                            printf("Error writing to file\n");
+                            exit(4);
+                        }
+                    
+                        sprintf(s, "dimensiune fisier: %ld\n", info2.st_size);
+                        if(write(fd2,s,strlen(s))!=strlen(s))
+                        {
+                            printf("Error writing to file\n");
+                            exit(4);
+                        }
+                        drepturi(" legatura");
                     }
-                    char *ext;
-                    ext=strchr(nume,'.');
-                    if(strcmp(ext,".bmp")!=0){
-                        nume_fis(nume);
-                        dimensiune();
-                        identificatorul();
-                        timpul_ult_modif(nume);
-                        nr_leg();
-                        drepturi("");
-                    }
-                    else{
-                        nume_fis(nume);
-                        lungime_inaltime(fd1);
-                        dimensiune();
-                        identificatorul();
-                        timpul_ult_modif(nume);
-                        nr_leg();
-                        drepturi("");
+                }
+                else{
+                    //caz fisier(bmp/normal)
+                    if(S_ISREG(info.st_mode)){
+                        //verificare fisier bmp
+                        int fd1;
+                        if((fd1=open(cale, O_RDONLY))<0)
+                        {
+                            printf("Error opening input file\n");
+                            exit(2);
+                        }
+                        char *ext;
+                        ext=strchr(nume,'.');
+                        if(strcmp(ext,".bmp")!=0){
+                            nume_fis(nume);
+                            dimensiune();
+                            identificatorul();
+                            timpul_ult_modif(nume);
+                            nr_leg();
+                            drepturi("");
+                        }
+                        else{
+                            nume_fis(nume);
+                            lungime_inaltime(fd1);
+                            dimensiune();
+                            identificatorul();
+                            timpul_ult_modif(nume);
+                            nr_leg();
+                            drepturi("");
+                        }
                     }
                 }
             }
+             char fis[250];
+             sprintf(fis,"%s_statistica.txt",nume);
+             //printf("%s\n",fis);
+             char *arg[]={"./","wc","-l",fis,NULL};
+             execvp("./",arg);
+             printf("Eroare la executie\n");
+             exit(2);
         }
-        sprintf(s, "\n");
-        if(write(fd2,s,strlen(s))!=strlen(s))
-        {
-            printf("Error writing to file\n");
-            exit(4);
-        }
+        else{
+            wpid=wait(&status);
+            if(WIFEXITED(status))
+                printf("\nChild %d ended with code %d\n",wpid,WEXITSTATUS(status));
+            else
+                printf("\nChild %d ended abnormally\n",wpid);
+            }
+       
     }
     closedir(dir);
 }
@@ -287,12 +314,12 @@ int main( int argc, char *argv[])
 {
    
 
-    if(argc!=2)
+    if(argc!=3)
     {
         exit(2);
     }
    
-   parcurgere(argv[1],0);
+   parcurgere(argv[1],argv[2],0);
     
     
     return 0;
