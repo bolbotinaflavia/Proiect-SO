@@ -8,10 +8,12 @@
 #include <time.h>
 #include<dirent.h>
 #include<sys/wait.h>
+#include <errno.h>
 
-#define DATA_OFFSET_OFFSET 0x000A
-#define WIDTH_OFFSET 0x0012
-#define HEIGHT_OFFSET 0x0016
+
+#define WIDTH_OFFSET 18
+#define HEIGHT_OFFSET 22
+#define HEADER_SIZE 54
 
 #define BUFFERSIZE 4096
 char s[250];
@@ -96,7 +98,7 @@ void timpul_ult_modif(char dir[]){
 
 void nr_leg(){
     //contorul de legaturi: <numar legaturi>
-    sprintf(s, "contorul de legaturi: %d\n", info.st_nlink);
+    sprintf(s, "contorul de legaturi: %ld\n", info.st_nlink);
     if(write(fd2,s,strlen(s))!=strlen(s))
         {
             printf("Error writing to file\n");
@@ -167,6 +169,75 @@ void drepturi(char *sir){
         }
 }
 
+//, char *output_path
+void process_image(char *input_path) {
+    int input_fd, output_fd;
+
+    if ((input_fd = open(input_path, O_RDWR)) < 0) {
+        perror("Error opening input file");
+        exit(2);
+    }
+
+    // if ((output_fd = open(output_path, O_WRONLY | O_CREAT | O_TRUNC, 0666)) < 0) {
+    //     perror("Error opening output file");
+    //     exit(3);
+    // }
+
+    unsigned char header[HEADER_SIZE];
+    if (read(input_fd, header, HEADER_SIZE) != HEADER_SIZE) {
+        perror("Error reading header");
+        exit(4);
+    }
+
+    if (write(input_fd, header, HEADER_SIZE) != HEADER_SIZE) {
+        perror("Error writing header");
+        exit(5);
+    }
+
+    int width, height;
+    lseek(input_fd, WIDTH_OFFSET, SEEK_SET);
+    read(input_fd, &width, sizeof(int));
+    lseek(input_fd, HEIGHT_OFFSET, SEEK_SET);
+    read(input_fd, &height, sizeof(int));
+
+    unsigned char pixel[3];
+    lseek(input_fd, HEADER_SIZE, SEEK_SET);
+
+    for (int i = 0; i < height; i++) {
+        for (int j = 0; j < width; j++) {
+            // Citirea culorilor pixelului
+            if (read(input_fd, pixel, sizeof(pixel)) != sizeof(pixel)) {
+                perror("Error reading pixel");
+                exit(6);
+            }
+
+            // Calculul culorii gri
+            unsigned char gray = 0.30 * pixel[0] + 0.59 * pixel[1] + 0.11 * pixel[2];
+
+
+            // Setarea culorii gri pentru toate cele trei canale de culoare
+            pixel[0] = pixel[1] = pixel[2] = gray;
+
+            // Scrierea pixelului modificat în fișierul de destinație
+            if (write(input_fd, pixel, sizeof(pixel)) != sizeof(pixel)) {
+                perror("Error writing pixel");
+                exit(7);
+            }
+        }
+        // Dacă lățimea imaginii nu este multiplu de 4, adăugați octeți de umplere
+        int padding = 4 - (width * 3) % 4;
+        for (int k = 0; k < padding; k++) {
+            char dummy;
+            read(input_fd, &dummy, sizeof(char));
+            write(input_fd, &dummy, sizeof(char));
+        }
+    }
+
+    // Închideți fișierele
+    close(input_fd);
+    //close(output_fd);
+}
+
 void parcurgere(char *nume_dir,char *nume_dir2,int nivel){
     DIR *dir;
     struct dirent *in;
@@ -174,7 +245,7 @@ void parcurgere(char *nume_dir,char *nume_dir2,int nivel){
     char cale[PATH_MAX],cale_link[PATH_MAX+1],spatii[PATH_MAX];
     int n;
 
-    pid_t pid,wpid;
+    pid_t pid,wpid,pid2;
     int status;
 
     memset(spatii,' ',2*nivel);
@@ -183,8 +254,14 @@ void parcurgere(char *nume_dir,char *nume_dir2,int nivel){
         perror("Nu s-a deschis directorul");
         exit(1);
     }
-
-    
+     char s_executie[250];
+     sprintf(s_executie,"statistica.txt");
+             int fd3;
+            if((fd3=open(s_executie, O_WRONLY | O_CREAT | O_EXCL, S_IRWXU)) < 0)
+            {
+                printf("Error creating destination file\n");
+                exit(3);
+            }
 
     while((in=readdir(dir))>0){
         
@@ -277,6 +354,9 @@ void parcurgere(char *nume_dir,char *nume_dir2,int nivel){
                             timpul_ult_modif(nume);
                             nr_leg();
                             drepturi("");
+                            
+
+
                         }
                         else{
                             nume_fis(nume);
@@ -286,22 +366,36 @@ void parcurgere(char *nume_dir,char *nume_dir2,int nivel){
                             timpul_ult_modif(nume);
                             nr_leg();
                             drepturi("");
+                            if((pid2=fork())<0){
+                                    printf("eroare creare proces fiu\n");
+                            }
+                            
+                            if(pid2==0){
+                               process_image(cale);
+
+                                exit(0);
+                            }
                         }
                     }
                 }
-            }
              char fis[250];
-             sprintf(fis,"%s_statistica.txt",nume);
+             sprintf(fis,"%s/%s_statistica.txt",nume_dir2,nume);
              //printf("%s\n",fis);
-             char *arg[]={"./","wc","-l",fis,NULL};
-             execvp("./",arg);
+        }
+            
+             
+            
+             char *arg[]={"-l",s_fis,NULL};
+             dup2(fd3,1);
+             execvp("wc",arg);
              printf("Eroare la executie\n");
              exit(2);
         }
         else{
             wpid=wait(&status);
-            if(WIFEXITED(status))
-                printf("\nChild %d ended with code %d\n",wpid,WEXITSTATUS(status));
+            if(WIFEXITED(status)){
+                printf("S-a incheiat procesul cu pid-ul %d si codul %d\n",wpid,WEXITSTATUS(status));
+            }
             else
                 printf("\nChild %d ended abnormally\n",wpid);
             }

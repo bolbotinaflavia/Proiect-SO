@@ -1,42 +1,5 @@
-nume fisier: fisier1.txt
-dimensiune: 0
-identificatorul utilizatorului: 1000
-timpul ultimei modificari: Sun Jan  8 03:09:04 4461234
-contorul de legaturi: 1
-drepturi de acces user: rw-
-drepturi de acces grup: rw-
-drepturi de acces altii: r--
-
-nume fisier: imagine.bmp
-lungime: 1920
-inaltime: 1280
-dimensiune: 7372938
-identificatorul utilizatorului: 1000
-timpul ultimei modificari: Sun Jan  8 03:09:04 4461234
-contorul de legaturi: 1
-drepturi de acces user: rw-
-drepturi de acces grup: rw-
-drepturi de acces altii: r--
-
-nume director: Director1
-identificatorul utilizatorului: 1000
-drepturi de acces user: rwx
-drepturi de acces grup: rwx
-drepturi de acces altii: r-x
-
-nume legatura: fisier3.txt
-dimensiune legatura: 11
-dimensiune fisier: 0
-drepturi de acces user legatura: rwx
-drepturi de acces grup legatura: rwx
-drepturi de acces altii legatura: rwx
-
-nume fisier: fisier2.txt
-dimensiune: 0
-identificatorul utilizatorului: 1000
-timpul ultimei modificari: Sun Jan  8 03:09:04 4461234
-contorul de legaturi: 1
-drepturi de acces user: rw-
-drepturi de acces grup: rw-
-drepturi de acces altii: r--
-
+  8  35 240 Director_rez/fisier1.txt_statistica.txt
+ 10  39 275 Director_rez/imagine.bmp_statistica.txt
+  5  21 147 Director_rez/Director1.1_statistica.txt
+  6  27 184 Director_rez/fisier3.txt_statistica.txt
+  8  35 240 Director_rez/fisier2.txt_statistica.txt
