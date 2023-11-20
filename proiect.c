@@ -171,7 +171,8 @@ void drepturi(char *sir){
 
 //, char *output_path
 void process_image(char *input_path) {
-    int input_fd, output_fd;
+    int input_fd;
+    // output_fd;
 
     if ((input_fd = open(input_path, O_RDWR)) < 0) {
         perror("Error opening input file");
@@ -183,16 +184,16 @@ void process_image(char *input_path) {
     //     exit(3);
     // }
 
-    unsigned char header[HEADER_SIZE];
-    if (read(input_fd, header, HEADER_SIZE) != HEADER_SIZE) {
-        perror("Error reading header");
-        exit(4);
-    }
+    // unsigned char header[HEADER_SIZE];
+    // if (read(input_fd, header, HEADER_SIZE) != HEADER_SIZE) {
+    //     perror("Error reading header");
+    //     exit(4);
+    // }
 
-    if (write(input_fd, header, HEADER_SIZE) != HEADER_SIZE) {
-        perror("Error writing header");
-        exit(5);
-    }
+    // if (write(input_fd, header, HEADER_SIZE) != HEADER_SIZE) {
+    //     perror("Error writing header");
+    //     exit(5);
+    // }
 
     int width, height;
     lseek(input_fd, WIDTH_OFFSET, SEEK_SET);
@@ -201,8 +202,11 @@ void process_image(char *input_path) {
     read(input_fd, &height, sizeof(int));
 
     unsigned char pixel[3];
-    lseek(input_fd, HEADER_SIZE, SEEK_SET);
-
+   //lseek(input_fd, HEADER_SIZE, SEEK_SET);
+    int data_offset;
+    lseek(input_fd,10,SEEK_SET);
+    read(input_fd,&data_offset,sizeof(int));
+    lseek(input_fd,data_offset,SEEK_SET);
     for (int i = 0; i < height; i++) {
         for (int j = 0; j < width; j++) {
             // Citirea culorilor pixelului
@@ -210,11 +214,13 @@ void process_image(char *input_path) {
                 perror("Error reading pixel");
                 exit(6);
             }
-
+            
             // Calculul culorii gri
+           lseek(input_fd,-3,SEEK_CUR);
+
             unsigned char gray = 0.30 * pixel[0] + 0.59 * pixel[1] + 0.11 * pixel[2];
 
-
+            
             // Setarea culorii gri pentru toate cele trei canale de culoare
             pixel[0] = pixel[1] = pixel[2] = gray;
 
@@ -223,18 +229,19 @@ void process_image(char *input_path) {
                 perror("Error writing pixel");
                 exit(7);
             }
+            lseek(input_fd,3-sizeof(unsigned char)*3,SEEK_CUR);
         }
-        // Dacă lățimea imaginii nu este multiplu de 4, adăugați octeți de umplere
-        int padding = 4 - (width * 3) % 4;
-        for (int k = 0; k < padding; k++) {
-            char dummy;
-            read(input_fd, &dummy, sizeof(char));
-            write(input_fd, &dummy, sizeof(char));
-        }
+        //Dacă lățimea imaginii nu este multiplu de 4, adăugați octeți de umplere
+        // int padding = 4 - (width * 4) % 4;
+        // for (int k = 0; k < padding; k++) {
+        //     char dummy;
+        //     read(input_fd, &dummy, sizeof(char));
+        //     write(input_fd, &dummy, sizeof(char));
+        // }
     }
 
     // Închideți fișierele
-    close(input_fd);
+   // close(input_fd);
     //close(output_fd);
 }
 
@@ -245,7 +252,8 @@ void parcurgere(char *nume_dir,char *nume_dir2,int nivel){
     char cale[PATH_MAX],cale_link[PATH_MAX+1],spatii[PATH_MAX];
     int n;
 
-    pid_t pid,wpid,pid2;
+    //int pfd[2];
+    pid_t pid,wpid,pid2,pid3;
     int status;
 
     memset(spatii,' ',2*nivel);
@@ -265,7 +273,10 @@ void parcurgere(char *nume_dir,char *nume_dir2,int nivel){
 
     while((in=readdir(dir))>0){
         
-        
+        // if(pipe(pfd)<0){
+        //     printf("eroare la creare pipe-ului\n");
+        // }
+        //creare primul fiu
         if((pid=fork())<0){
             printf("eroare creare proces fiu\n");
         }
@@ -277,17 +288,17 @@ void parcurgere(char *nume_dir,char *nume_dir2,int nivel){
                 perror("eroare la lstat");
                 exit(1);
         }
+        //primul fiu
         if(pid==0){
             
+            //close(pfd[0]);
             char s_fis[250];
             sprintf(s_fis,"%s/%s_statistica.txt",nume_dir2,nume);
-            if((fd2=open(s_fis, O_WRONLY | O_CREAT | O_EXCL, S_IRWXU)) < 0)
-            {
+            if((fd2=open(s_fis, O_WRONLY | O_CREAT | O_EXCL, S_IRWXU)) < 0){
                 printf("Error creating destination file\n");
                 exit(3);
             }
-            
-            //caz director
+           
             if(S_ISDIR(info.st_mode)){
                 sprintf(s, "nume director: %s\n", nume_dir);
                 if(write(fd2,s,strlen(s))!=strlen(s))
@@ -347,6 +358,7 @@ void parcurgere(char *nume_dir,char *nume_dir2,int nivel){
                         }
                         char *ext;
                         ext=strchr(nume,'.');
+                        //caz fisier normal
                         if(strcmp(ext,".bmp")!=0){
                             nume_fis(nume);
                             dimensiune();
@@ -354,10 +366,12 @@ void parcurgere(char *nume_dir,char *nume_dir2,int nivel){
                             timpul_ult_modif(nume);
                             nr_leg();
                             drepturi("");
+
                             
 
 
                         }
+                        //caz ffisier bmp
                         else{
                             nume_fis(nume);
                             lungime_inaltime(fd1);
@@ -376,6 +390,7 @@ void parcurgere(char *nume_dir,char *nume_dir2,int nivel){
                                 exit(0);
                             }
                         }
+                        close(fd1);
                     }
                 }
              char fis[250];
@@ -383,25 +398,36 @@ void parcurgere(char *nume_dir,char *nume_dir2,int nivel){
              //printf("%s\n",fis);
         }
             
-             
-            
-             char *arg[]={"-l",s_fis,NULL};
+              char *arg[]={"-l",s_fis,NULL};
              dup2(fd3,1);
              execvp("wc",arg);
              printf("Eroare la executie\n");
              exit(2);
+            //caz director
+            
+             
         }
         else{
+
+            //close(pfd[1]);
+            //FILE *stream=fdopen(pfd[0],"r");
+            //char *string;
+            //fscanf(stream,"%s",string);
             wpid=wait(&status);
             if(WIFEXITED(status)){
                 printf("S-a incheiat procesul cu pid-ul %d si codul %d\n",wpid,WEXITSTATUS(status));
             }
             else
                 printf("\nChild %d ended abnormally\n",wpid);
+            close(pid);
+            close(pid2);
+            //close(pfd[0]);
             }
        
     }
     closedir(dir);
+    close(fd3);
+    //close(fd1);
 }
 
 int main( int argc, char *argv[])
