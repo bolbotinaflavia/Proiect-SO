@@ -22,7 +22,7 @@ struct stat info;
 
 void nume_fis(char dir[]){
     //scriere denumire fisier
-    sprintf(s, "nume fisier: %s\n", dir);
+    sprintf(s, "Nume fisier %s!\n", dir);
     if(write(fd2,s,strlen(s))!=strlen(s))
     {
         printf("Error writing to file\n");
@@ -98,7 +98,7 @@ void timpul_ult_modif(char dir[]){
 
 void nr_leg(){
     //contorul de legaturi: <numar legaturi>
-    sprintf(s, "contorul de legaturi: %ld\n", info.st_nlink);
+    sprintf(s, "Contorul de legaturi: %ld\n", info.st_nlink);
     if(write(fd2,s,strlen(s))!=strlen(s))
         {
             printf("Error writing to file\n");
@@ -245,55 +245,65 @@ void process_image(char *input_path) {
     //close(output_fd);
 }
 
-void parcurgere(char *nume_dir,char *nume_dir2,int nivel){
+
+
+void parcurgere(char *nume_dir,char *nume_dir2,int nivel,char *car){
     DIR *dir;
     struct dirent *in;
     char *nume;
     char cale[PATH_MAX],cale_link[PATH_MAX+1],spatii[PATH_MAX];
     int n;
 
-    //int pfd[2];
-    pid_t pid,wpid,pid2,pid3;
-    int status;
-
     memset(spatii,' ',2*nivel);
     spatii[2*nivel]='\0';
+
+    int status;
+    pid_t wpid;
+    int pfd1[2], pfd2[2];
+
     if(!(dir=opendir(nume_dir))){
         perror("Nu s-a deschis directorul");
         exit(1);
     }
-     char s_executie[250];
-     sprintf(s_executie,"statistica.txt");
-             int fd3;
-            if((fd3=open(s_executie, O_WRONLY | O_CREAT | O_EXCL, S_IRWXU)) < 0)
-            {
-                printf("Error creating destination file\n");
-                exit(3);
-            }
+
+    char s_executie[250];
+    sprintf(s_executie,"statistica.txt");
+    int fd3;
+    if((fd3=open(s_executie, O_WRONLY | O_CREAT | O_EXCL, S_IRWXU)) < 0){
+        printf("Error creating destination file\n");
+        exit(3);
+    }
 
     while((in=readdir(dir))>0){
-        
-        // if(pipe(pfd)<0){
-        //     printf("eroare la creare pipe-ului\n");
-        // }
-        //creare primul fiu
-        if((pid=fork())<0){
-            printf("eroare creare proces fiu\n");
-        }
+    
         nume=in->d_name;
+        
         if(strcmp(nume,".")==0||strcmp(nume,"..")==0)
                 continue;
+        
         snprintf(cale,sizeof(cale),"%s/%s",nume_dir,nume);
+        
         if(lstat(cale,&info)<0){
                 perror("eroare la lstat");
                 exit(1);
         }
+        
         //primul fiu
-        if(pid==0){
+        pid_t pid1=fork();
+        
+        if (pid1 < 0) {
+            printf("eroare creare proces fiu\n");
+        }
+        if (pipe(pfd1) < 0 || pipe(pfd2) < 0) {
+            printf("eroare la creare pipe-ului\n");
+        }
+        if(pid1==0){
             
-            //close(pfd[0]);
+            close(pfd1[0]);
+            
             char s_fis[250];
             sprintf(s_fis,"%s/%s_statistica.txt",nume_dir2,nume);
+            
             if((fd2=open(s_fis, O_WRONLY | O_CREAT | O_EXCL, S_IRWXU)) < 0){
                 printf("Error creating destination file\n");
                 exit(3);
@@ -351,13 +361,14 @@ void parcurgere(char *nume_dir,char *nume_dir2,int nivel){
                     if(S_ISREG(info.st_mode)){
                         //verificare fisier bmp
                         int fd1;
-                        if((fd1=open(cale, O_RDONLY))<0)
-                        {
+                        if((fd1=open(cale, O_RDONLY))<0){
                             printf("Error opening input file\n");
                             exit(2);
                         }
+                        
                         char *ext;
                         ext=strchr(nume,'.');
+                        
                         //caz fisier normal
                         if(strcmp(ext,".bmp")!=0){
                             nume_fis(nume);
@@ -366,11 +377,59 @@ void parcurgere(char *nume_dir,char *nume_dir2,int nivel){
                             timpul_ult_modif(nume);
                             nr_leg();
                             drepturi("");
+                         
+                           // Citirea conținutului fișierului
+                            char content[BUFFERSIZE];
+                            // close(fd_content);
+                            int fd_pipe;
+                            ssize_t bytesRead;
+                          if ((fd_pipe = open(s_fis, O_RDONLY)) < 0) {
+        perror("Error opening destination file");
+        exit(3);
+    }
 
-                            
+    // Iterați citirea până când nu mai sunt date de citit
+    while ((bytesRead = read(fd_pipe, content, BUFFERSIZE)) > 0) {
+        // Scrieți conținutul citit în pipe
+        printf("%s\n",content);
+        if (write(pfd1[1], content, bytesRead) != bytesRead) {
+            printf("nu\n");
+            perror("Error writing to pipe");
+            exit(4);
+        }
+        printf("ok\n");
+    }
+printf("ok\n");
+    // Închideți fd_content
+    close(fd_pipe);
+     close(pfd1[1]);
+     printf("ok\n");
+                            int pid3 = fork();
+                    
+                            if (pid3< 0) {
+                                printf("eroare la creare proces fiu\n");
+                            }
+                             printf("ok3\n");
+                            if (pid3 == 0) {
+                                close(pfd1[1]); // Închide capătul de scriere al primei pipe-ului
+                                 close(pfd2[0]);
+                                dup2(pfd1[0], 0); // Redirecționează intrarea standard către capătul de citire al celei de-a doua pipe
+                               // dup2(pfd2[1], 1); // Redirecționează ieșirea standard către capătul de scriere al celei de-a doua pipe
+                                printf("ok\n");
+                                // Închide capătul de citire al celei de-a doua pipe-ului
+                               
+                                // Execută scriptul bash
+                                char *arg[] = {"bash", "exercitiu_a.sh", car, NULL};
+                                execvp("bash", arg);
 
-
+                                // Dacă execvp() întoarce ceva, există o eroare
+                                perror("Error calling execvp");
+                                exit(2);
+                                // Închide capătul de scriere al celei de-a doua pipe-ului
+                                //close(pfd2[1]);
+                            }
                         }
+                        
                         //caz ffisier bmp
                         else{
                             nume_fis(nume);
@@ -380,6 +439,8 @@ void parcurgere(char *nume_dir,char *nume_dir2,int nivel){
                             timpul_ult_modif(nume);
                             nr_leg();
                             drepturi("");
+
+                            int pid2;
                             if((pid2=fork())<0){
                                     printf("eroare creare proces fiu\n");
                             }
@@ -391,25 +452,23 @@ void parcurgere(char *nume_dir,char *nume_dir2,int nivel){
                             }
                         }
                         close(fd1);
+                        
                     }
                 }
              char fis[250];
              sprintf(fis,"%s/%s_statistica.txt",nume_dir2,nume);
              //printf("%s\n",fis);
         }
-            
-              char *arg[]={"-l",s_fis,NULL};
+            char *argx[]={"-l",s_fis,NULL};
              dup2(fd3,1);
-             execvp("wc",arg);
+             execvp("wc",argx);
              printf("Eroare la executie\n");
-             exit(2);
-            //caz director
-            
-             
+             exit(2); 
         }
         else{
 
-            //close(pfd[1]);
+            close(pfd1[1]);
+            close(pfd2[1]);
             //FILE *stream=fdopen(pfd[0],"r");
             //char *string;
             //fscanf(stream,"%s",string);
@@ -419,9 +478,16 @@ void parcurgere(char *nume_dir,char *nume_dir2,int nivel){
             }
             else
                 printf("\nChild %d ended abnormally\n",wpid);
-            close(pid);
-            close(pid2);
-            //close(pfd[0]);
+            close(pfd1[0]);
+            close(pfd2[0]);
+            
+            char rez[BUFFERSIZE];
+            read(pfd2[0],rez,BUFFERSIZE);
+            int ok;
+            sscanf(rez,"%d",&ok);
+            printf("Au fost identificate in total %d propozitii corecte care contin caracterul %s\n",ok,car);
+            close(pfd2[0]);
+
             }
        
     }
@@ -434,12 +500,12 @@ int main( int argc, char *argv[])
 {
    
 
-    if(argc!=3)
+    if(argc!=4)
     {
         exit(2);
     }
    
-   parcurgere(argv[1],argv[2],0);
+   parcurgere(argv[1],argv[2],0,argv[3]);
     
     
     return 0;
