@@ -38,4 +38,4 @@ while IFS= read -r propozitie || [ -n "$propozitie" ]; do
 done
 
 # Afiseaza rezultatul
-echo "Numarul de propozitii corecte care contin caracterul '$char': $corecte"
+echo $corecte
