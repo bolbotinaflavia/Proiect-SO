@@ -1,7 +1,7 @@
 Nume fisier fisier2.txt!
 dimensiune: 0
 identificatorul utilizatorului: 1000
-timpul ultimei modificari: Thu May  1 10:13:52 4461355
+timpul ultimei modificari: Sun Mar 23 11:39:44 4461670
 Contorul de legaturi: 1
 drepturi de acces user: rw-
 drepturi de acces grup: rw-
